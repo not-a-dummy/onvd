@@ -1,0 +1,178 @@
+name: Dump Netvar
+
+on:
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  upload-sdd-artifact:
+    name: Upload Artifact of Steam Depot Downloader
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Steam Depot downloader
+        run: |
+          mkdir sdd && cd sdd && curl -s https://api.github.com/repos/SteamRE/DepotDownloader/releases/latest \
+          | grep "browser_download_url.*zip" \
+          | cut -d : -f 2,3 \
+          | tr -d \" \
+          | wget -qi - -O sdd.zip && unzip sdd.zip && rm -f sdd.zip && cd ..
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: sdd-artifact
+          path: sdd
+
+  dump-windows:
+    name: Dump Netvar of Windows Version of CSGO
+    runs-on: windows-latest
+    needs: upload-sdd-artifact
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Download Artifact of Steam Depot Downloader
+        uses: actions/download-artifact@v2
+        with:
+          name: sdd-artifact
+          path: sdd
+
+      - name: Setup dotnet
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 5.x
+
+      - name: Windows - Download Required File List
+        run: |
+          cd sdd && curl -o windows.txt https://pastebin.com/raw/nDCp8e9g
+
+      - name: Download Required Windows CSGO Files
+        run: >
+          cd sdd && 
+          dotnet DepotDownloader.dll -app 730 -os windows -osarch 32 
+          -filelist windows.txt -username ${{ secrets.DUMMY_STEAM_USERNAME }} -password ${{ secrets.DUMMY_STEAM_PASSWORD }}
+
+      - name: Run premake
+        run: vendor/premake/premake5.exe vs2019
+
+      - name: Add MSBuild to PATH
+        uses: microsoft/setup-msbuild@v1.0.2
+
+      - name: Build
+        working-directory: ${{ env.GITHUB_WORKSPACE }}
+        run: msbuild /m /p:Configuration=Release build
+
+      - name: Copy Binary to Appropriate Folder
+        run: xcopy /s build\onvd\bin\Release\onvd.exe sdd\depots\732\6923374\
+
+      - name: Dump Netvar
+        run: cd sdd\depots\732\6923374\ && ./onvd.exe
+
+      - name: Linux - Download Required File List
+        run: |
+          cd sdd && curl -o linux.txt https://pastebin.com/raw/XxPcyqmh
+
+      - name: Download Required Linux CSGO Files
+        run: >
+          cd sdd && 
+          dotnet DepotDownloader.dll -app 730 -os linux -osarch 64 
+          -filelist linux.txt -username ${{ secrets.DUMMY_STEAM_USERNAME }} -password ${{ secrets.DUMMY_STEAM_PASSWORD }}
+
+      - name: Upload Artifact of Needed Files for Linux
+        uses: actions/upload-artifact@v2
+        with:
+          name: linux-csgo-artifact
+          path: |
+            sdd/depots/734/6923374
+            sdd/depots/732/6923374/windows.netvar.*
+
+  dump-linux:
+    name: Dump Netvar of Linux Version of CSGO
+    needs: [dump-windows]
+    runs-on: ubuntu-latest
+
+    env:
+      CC: gcc-10
+      CXX: g++-10
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v2
+
+      - name: Run premake
+        run: vendor/premake/premake5 gmake2
+
+      - name: Install Dependencies
+        run: |
+          sudo apt update
+          sudo apt install libsdl2-dev
+          sudo apt install libopenal-dev
+          sudo apt install gcc-10 g++-10
+
+      - name: Build
+        run: make -C build config=release
+
+      - name: Download Artifact of Needed Files
+        uses: actions/download-artifact@v2
+        with:
+          name: linux-csgo-artifact
+          path: artifact
+
+      - name: Move Binary to Appropriate Folder
+        run: mv build/onvd/bin/Release/onvd artifact/734/6923374
+
+      - name: Dump Netvar
+        run: cd artifact/734/6923374 && ./onvd
+
+      - name: Move Windows' Dumped Files
+        run: mv artifact/732/6923374/windows.netvar.* artifact/734/6923374
+
+      - name: Upload Artifact of Netvar Dump Result
+        uses: actions/upload-artifact@v2
+        with:
+          name: netvar-artifact
+          path: |
+            artifact/734/6923374/*.netvar.*
+
+  release:
+    name: Release
+    needs: [dump-windows, dump-linux]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download Artifact of Netvar Dump
+        uses: actions/download-artifact@v2
+        with:
+          name: netvar-artifact
+          path: artifact
+
+      - name: Set Current Date as Environment Variable
+        run: echo "CUR_DATE=$(date +'%d-%m-%Y')" >> $GITHUB_ENV
+
+      - name: Release
+        uses: 'marvinpinto/action-automatic-releases@latest'
+        with:
+          repo_token: '${{ secrets.GITHUB_TOKEN }}'
+          automatic_release_tag: 'latest'
+          prerelease: false
+          title: 'Dump ${{ env.CUR_DATE }}'
+          files: |
+            artifact/*.netvar.*
+
+  cleanup:
+    name: Cleanup
+    if: always()
+    needs: release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call Webhook to Delete Artifacts
+        env:
+          FOR_WEBHOOKS_SECRET: ${{ secrets.FOR_WEBHOOKS_SECRET }}
+        run: |
+          echo "::add-mask::$FOR_WEBHOOKS_SECRET"
+          curl --verbose --fail --show-error --location --request POST "https://api.github.com/repos/$GITHUB_REPOSITORY/dispatches" \
+          --header "Authorization: token $FOR_WEBHOOKS_SECRET" --header 'Content-Type: application/json' --header 'Accept: application/vnd.github.everest-preview+json' \
+          --data-raw "{ \"event_type\": \"delete_all_artifacts\", \"client_payload\": {\"parent_runid\": \"$GITHUB_RUN_ID\", \"parent_repo\": \"$GITHUB_REPOSITORY\"} }"
