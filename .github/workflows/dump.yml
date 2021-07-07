@@ -52,7 +52,7 @@ jobs:
       - name: Download Required Windows CSGO Files
         run: >
           cd sdd && 
-          dotnet DepotDownloader.dll -app 730 -os windows -osarch 32 
+          dotnet DepotDownloader.dll -app 730 -os windows -osarch 32 -dir windows_csgo
           -filelist windows.txt -username ${{ secrets.DUMMY_STEAM_USERNAME }} -password ${{ secrets.DUMMY_STEAM_PASSWORD }}
 
       - name: Run premake
@@ -66,10 +66,10 @@ jobs:
         run: msbuild /m /p:Configuration=Release build
 
       - name: Copy Binary to Appropriate Folder
-        run: xcopy /s build\onvd\bin\Release\onvd.exe sdd\depots\732\6923374\
+        run: xcopy /s build\onvd\bin\Release\onvd.exe sdd\windows_csgo\
 
       - name: Dump Netvar
-        run: cd sdd\depots\732\6923374\ && ./onvd.exe
+        run: cd sdd\windows_csgo\ && ./onvd.exe
 
       - name: Linux - Download Required File List
         run: |
@@ -78,7 +78,7 @@ jobs:
       - name: Download Required Linux CSGO Files
         run: >
           cd sdd && 
-          dotnet DepotDownloader.dll -app 730 -os linux -osarch 64 
+          dotnet DepotDownloader.dll -app 730 -os linux -osarch 64 -dir linux_csgo
           -filelist linux.txt -username ${{ secrets.DUMMY_STEAM_USERNAME }} -password ${{ secrets.DUMMY_STEAM_PASSWORD }}
 
       - name: Upload Artifact of Needed Files for Linux
@@ -86,8 +86,8 @@ jobs:
         with:
           name: linux-csgo-artifact
           path: |
-            sdd/depots/734/6923374
-            sdd/depots/732/6923374/windows.netvar.*
+            sdd/linux_csgo
+            sdd/windows_csgo/windows.netvar.*
 
   dump-linux:
     name: Dump Netvar of Linux Version of CSGO
@@ -121,21 +121,21 @@ jobs:
           name: linux-csgo-artifact
           path: artifact
 
-      - name: Move Binary to Appropriate Folder
-        run: mv build/onvd/bin/Release/onvd artifact/734/6923374
+      - name: Copy Binary to Appropriate Folder
+        run: cp build/onvd/bin/Release/onvd artifact/linux_csgo
 
       - name: Dump Netvar
-        run: cd artifact/734/6923374 && ./onvd
+        run: cd artifact/linux_csgo && ./onvd
 
       - name: Move Windows' Dumped Files
-        run: mv artifact/732/6923374/windows.netvar.* artifact/734/6923374
+        run: mv artifact/windows_csgo/windows.netvar.* artifact/linux_csgo
 
       - name: Upload Artifact of Netvar Dump Result
         uses: actions/upload-artifact@v2
         with:
           name: netvar-artifact
           path: |
-            artifact/734/6923374/*.netvar.*
+            artifact/*.netvar.*
 
   release:
     name: Release
