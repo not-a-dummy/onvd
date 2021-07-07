@@ -105,7 +105,7 @@ void csgo::dumper_t::dump_csharp(std::ofstream& stream, bool filter)
     stream << "using System;\n\n"
            << "namespace onvd\n{";
 
-    for (const auto &[table, prop_data] : filter ? m_filtered_netvar : m_netvar.get_map())
+    for (const auto& [table, prop_data] : filter ? m_filtered_netvar : m_netvar.get_map())
     {
         stream << "\n\tpublic static class " << table << "\n\t{\n";
 
@@ -121,7 +121,7 @@ void csgo::dumper_t::dump_csharp(std::ofstream& stream, bool filter)
                    << std::uppercase << std::setw(4) << std::setfill('0') << std::hex << prop_offset << ";\n";
         }
 
-        stream << "\t} /// namespace " << table << "\n\n";
+        stream << "\t} /// " << table << "\n\n";
     }
 }
 
