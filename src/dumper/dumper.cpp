@@ -7,6 +7,9 @@ csgo::dumper_t::dumper_t(const netvar_t& netvar) : m_netvar(netvar)
         if (!prop_name.starts_with("m_"))
             return {};
 
+        if (prop_name.find("localSound") != std::string_view::npos)
+            return std::string(prop_name);
+
         /// it's a vector3 datatype, just grab the first element's offset
         if (prop_name.ends_with("[1]") || prop_name.ends_with("[2]"))
             return {};
