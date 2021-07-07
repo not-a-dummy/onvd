@@ -135,7 +135,7 @@ jobs:
         with:
           name: netvar-artifact
           path: |
-            artifact/*.netvar.*
+            artifact/linux_csgo/*.netvar.*
 
   release:
     name: Release
