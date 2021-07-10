@@ -3,7 +3,7 @@ name: Dump Netvar
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 8 * * *'
+    - cron: '0 0 * * *'
 
 jobs:
   upload-sdd-artifact:
@@ -149,6 +149,9 @@ jobs:
           name: netvar-artifact
           path: artifact
 
+      - name: Set Current UTC Timestamp as Environment Variable
+        run: echo "UTC_TS=$(date +'%s')" >> $GITHUB_ENV
+
       - name: Set Current Date as Environment Variable
         run: echo "CUR_DATE=$(date +'%d-%m-%Y')" >> $GITHUB_ENV
 
@@ -156,7 +159,7 @@ jobs:
         uses: 'marvinpinto/action-automatic-releases@latest'
         with:
           repo_token: '${{ secrets.GITHUB_TOKEN }}'
-          automatic_release_tag: 'latest'
+          automatic_release_tag: '${{ env.UTC_TS }}'
           prerelease: false
           title: 'Dump ${{ env.CUR_DATE }}'
           files: |
